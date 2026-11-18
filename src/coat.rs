@@ -169,7 +169,8 @@ const STEEL_RAMP: [[u8; 4]; 4] = [
 const WHITE_PATCH_SCORE: f64 = 0.5;
 /// Share of the patch span that pigments cover together, divided by their shares.
 const PATCH_COVERAGE: f64 = 0.58;
-const PATCH_SPAN: Range<f64> = 0.02..0.86;
+/// Organic patches reach the nose; only the tail end is left unpatched.
+const PATCH_SPAN: Range<f64> = 0.0..0.86;
 /// Patches move this far from organic shapes toward the top pigment's variety layout.
 const VARIETY_PULL: f64 = 0.25;
 // The variety layout votes with a hard step, so it carries little weight against the
@@ -915,4 +916,43 @@ fn hash_lattice_point(identity_seed: u64, lattice_x: i64, lattice_y: i64) -> f64
     hash_bits = (hash_bits ^ (hash_bits >> 27)).wrapping_mul(0x94d049bb133111eb);
     hash_bits ^= hash_bits >> 31;
     (hash_bits >> 11) as f64 / (1_u64 << 53) as f64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::history::AccountSnapshot;
+    use crate::koi::derive_koi_development;
+
+    #[test]
+    fn organic_patches_can_reach_the_tip_of_the_nose_on_every_body() {
+        let snapshot: AccountSnapshot =
+            serde_json::from_str(include_str!("../tests/fixtures/account-with-history.json"))
+                .unwrap();
+        let mut development = derive_koi_development(&snapshot).unwrap();
+        for body in [
+            KoiBody::White,
+            KoiBody::Black,
+            KoiBody::Asagi,
+            KoiBody::Tea,
+            KoiBody::Gold,
+            KoiBody::Platinum,
+        ] {
+            for color in ["#f34b7d", "#3572a5"] {
+                development.language_shares = [("language".to_owned(), 1.0)].into();
+                development.language_colors =
+                    [("language".to_owned(), Some(color.try_into().unwrap()))].into();
+                // Accounts may have plain noses, but there must be no blanket
+                // exclusion of the snout for either red or blue patches.
+                for along in [0.0, 0.01] {
+                    let has_pigment = (0..32).any(|seed| {
+                        development.identity_seed = seed;
+                        let coat = KoiCoat::new(&development, body, |_| 1.0);
+                        coat.select_body_pigment(along, 0.0).is_some()
+                    });
+                    assert!(has_pigment, "{body:?}, {color}, nose position {along}");
+                }
+            }
+        }
+    }
 }
