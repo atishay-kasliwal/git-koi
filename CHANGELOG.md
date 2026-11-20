@@ -29,7 +29,6 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Language markings can reach the tip of the nose instead of ending at a
   straight cutoff behind the snout (#71).
-
 - When GitHub's contribution calendar leaves out a day or reports one twice,
   `git-koi collect` says so and asks to try again, instead of naming a repair
   only the author of a snapshot file can make (#56).

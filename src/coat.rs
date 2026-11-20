@@ -700,12 +700,12 @@ fn calculate_pigment_development(pigment: Pigment, color_fraction: f64) -> f64 {
 /// A grid over the patch span, weighted by half width so each sample stands for its
 /// share of body area.
 fn sample_body(calculate_half_width: impl Fn(f64) -> f64) -> Vec<BodySample> {
-    const ALONG_STEPS: usize = 170;
     const ALONG_STEP_FRACTION: f64 = 0.005;
     const LATERAL_STEPS: usize = 41;
     const LATERAL_STEP_FRACTION: f64 = 0.05;
-    let mut body_samples = Vec::with_capacity(ALONG_STEPS * LATERAL_STEPS);
-    for along_step in 0..ALONG_STEPS {
+    let along_steps = ((PATCH_SPAN.end - PATCH_SPAN.start) / ALONG_STEP_FRACTION).round() as usize;
+    let mut body_samples = Vec::with_capacity(along_steps * LATERAL_STEPS);
+    for along_step in 0..along_steps {
         let along_fraction = PATCH_SPAN.start + along_step as f64 * ALONG_STEP_FRACTION;
         let area_weight = calculate_half_width(along_fraction);
         for lateral_step in 0..LATERAL_STEPS {
@@ -930,7 +930,7 @@ mod tests {
             serde_json::from_str(include_str!("../tests/fixtures/account-with-history.json"))
                 .unwrap();
         let mut development = derive_koi_development(&snapshot).unwrap();
-        for body in [
+        for koi_body in [
             KoiBody::White,
             KoiBody::Black,
             KoiBody::Asagi,
@@ -938,19 +938,25 @@ mod tests {
             KoiBody::Gold,
             KoiBody::Platinum,
         ] {
-            for color in ["#f34b7d", "#3572a5"] {
+            for language_color in ["#f34b7d", "#3572a5"] {
                 development.language_shares = [("language".to_owned(), 1.0)].into();
-                development.language_colors =
-                    [("language".to_owned(), Some(color.try_into().unwrap()))].into();
+                development.language_colors = [(
+                    "language".to_owned(),
+                    Some(language_color.try_into().unwrap()),
+                )]
+                .into();
                 // Accounts may have plain noses, but there must be no blanket
                 // exclusion of the snout for either red or blue patches.
-                for along in [0.0, 0.01] {
-                    let has_pigment = (0..32).any(|seed| {
-                        development.identity_seed = seed;
-                        let coat = KoiCoat::new(&development, body, |_| 1.0);
-                        coat.select_body_pigment(along, 0.0).is_some()
+                for along_fraction in [0.0, 0.01] {
+                    let has_pigment = (0..32).any(|identity_seed| {
+                        development.identity_seed = identity_seed;
+                        let koi_coat = KoiCoat::new(&development, koi_body, |_| 1.0);
+                        koi_coat.select_body_pigment(along_fraction, 0.0).is_some()
                     });
-                    assert!(has_pigment, "{body:?}, {color}, nose position {along}");
+                    assert!(
+                        has_pigment,
+                        "{koi_body:?}, {language_color}, nose position {along_fraction}"
+                    );
                 }
             }
         }
